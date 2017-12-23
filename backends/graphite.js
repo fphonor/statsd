@@ -25,8 +25,8 @@ var l;
 
 var debug;
 var flushInterval;
-var graphiteHost;
-var graphitePort;
+var graphiteHosts;
+var graphitePorts;
 var graphitePicklePort;
 var graphiteProtocol;
 var flush_counts;
@@ -57,37 +57,41 @@ var post_stats = function graphite_post_stats(stats) {
   var flush_time = graphiteStats.flush_time || 0;
   var flush_length = graphiteStats.flush_length || 0;
 
-  if (graphiteHost) {
+  if (graphiteHosts) {
+    for (var i=0; i< graphiteHosts.length; i++) {
     try {
-      var port = graphiteProtocol == 'pickle' ? graphitePicklePort : graphitePort;
-      var graphite = net.createConnection(port, graphiteHost);
-      graphite.addListener('error', function(connectionException){
-        if (debug) {
-          l.log(connectionException);
-        }
-      });
-      graphite.on('connect', function() {
-        var ts = Math.round(Date.now() / 1000);
-        var namespace = globalNamespace.concat(prefixStats).join(".");
-        stats.add(namespace + '.graphiteStats.last_exception' + globalSuffix, last_exception, ts);
-        stats.add(namespace + '.graphiteStats.last_flush'     + globalSuffix, last_flush    , ts);
-        stats.add(namespace + '.graphiteStats.flush_time'     + globalSuffix, flush_time    , ts);
-        stats.add(namespace + '.graphiteStats.flush_length'   + globalSuffix, flush_length  , ts);
-        var stats_payload = graphiteProtocol == 'pickle' ? stats.toPickle() : stats.toText();
+        var graphiteHost = graphiteHosts[i];
+        var graphitePort = graphitePorts[i];
+        var port = graphiteProtocol == 'pickle' ? graphitePicklePort : graphitePort;
+        var graphite = net.createConnection(port, graphiteHost);
+        graphite.addListener('error', function(connectionException){
+          if (debug) {
+            l.log(connectionException);
+          }
+        });
+        graphite.on('connect', function() {
+          var ts = Math.round(Date.now() / 1000);
+          var namespace = globalNamespace.concat(prefixStats).join(".");
+          stats.add(namespace + '.graphiteStats.last_exception' + globalSuffix, last_exception, ts);
+          stats.add(namespace + '.graphiteStats.last_flush'     + globalSuffix, last_flush    , ts);
+          stats.add(namespace + '.graphiteStats.flush_time'     + globalSuffix, flush_time    , ts);
+          stats.add(namespace + '.graphiteStats.flush_length'   + globalSuffix, flush_length  , ts);
+          var stats_payload = graphiteProtocol == 'pickle' ? stats.toPickle() : stats.toText();
 
-        var starttime = Date.now();
-        this.write(stats_payload);
-        this.end();
+          var starttime = Date.now();
+          this.write(stats_payload);
+          this.end();
 
-        graphiteStats.flush_time = (Date.now() - starttime);
-        graphiteStats.flush_length = stats_payload.length;
-        graphiteStats.last_flush = Math.round(Date.now() / 1000);
-      });
+          graphiteStats.flush_time = (Date.now() - starttime);
+          graphiteStats.flush_length = stats_payload.length;
+          graphiteStats.last_flush = Math.round(Date.now() / 1000);
+        });
     } catch(e){
       if (debug) {
         l.log(e);
       }
       graphiteStats.last_exception = Math.round(Date.now() / 1000);
+    }
     }
   }
 };
@@ -206,9 +210,9 @@ var flush_stats = function graphite_flush(ts, metrics) {
         stats.add(the_key + '.' + timer_data_key + globalSuffix, timer_data[key][timer_data_key], ts);
       } else {
         for (var timer_data_sub_key in timer_data[key][timer_data_key]) {
-          if (debug) {
-            l.log(timer_data[key][timer_data_key][timer_data_sub_key].toString());
-          }
+          // if (debug) {
+          //   l.log(timer_data[key][timer_data_key][timer_data_sub_key].toString());
+          // }
           stats.add(the_key + '.' + timer_data_key + '.' + timer_data_sub_key + globalSuffix,
                     timer_data[key][timer_data_key][timer_data_sub_key], ts);
         }
@@ -260,8 +264,8 @@ var backend_status = function graphite_status(writeCb) {
 exports.init = function graphite_init(startup_time, config, events, logger) {
   debug = config.debug;
   l = logger;
-  graphiteHost = config.graphiteHost;
-  graphitePort = config.graphitePort || 2003;
+  graphiteHosts = config.graphiteHosts;
+  graphitePorts = config.graphitePorts || graphiteHosts.map(_ => 2003);
   graphitePicklePort = config.graphitePicklePort || 2004;
   graphiteProtocol = config.graphiteProtocol || 'text';
   config.graphite = config.graphite || {};

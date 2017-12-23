@@ -126,7 +126,7 @@ function flushMetrics() {
       } else {
         metrics.timers[timer_key] = [];
         metrics.timer_counters[timer_key] = 0;
-     }
+      }
     }
 
     // Clear the sets
